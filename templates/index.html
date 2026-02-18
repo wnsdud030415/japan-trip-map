@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>친구들과 일본 여행 지도</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body, html { height: 100%; margin: 0; padding: 0; font-family: 'Noto Sans KR', sans-serif; }
+        
+        /* 지도 전체 화면 */
+        #map { height: 100%; width: 100%; }
+        
+        /* 버튼들이 들어갈 박스 */
+        #controls {
+            position: absolute;
+            top: 60px; /* 모바일에서 검색창 등과 겹치지 않게 */
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 999;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 8px;
+            border-radius: 25px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            display: flex;
+            gap: 5px;
+        }
+        
+        /* 버튼 스타일 */
+        .filter-btn {
+            border: none;
+            background: #f0f0f0;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        
+        /* 선택된 버튼 스타일 */
+        .filter-btn.active {
+            background: #333;
+            color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        /* 범례(Legend) 스타일 */
+        #legend {
+            background: white;
+            padding: 10px;
+            margin: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            font-size: 12px;
+            position: absolute;
+            bottom: 30px; 
+            left: 10px; 
+            z-index: 999;
+        }
+        .legend-item { margin-bottom: 5px; display: flex; align-items: center; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; display: inline-block; }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <button class="filter-btn active" onclick="filterMap('all')">전체보기</button>
+        <button class="filter-btn" onclick="filterMap('namba')">오사카(난바)</button>
+        <button class="filter-btn" onclick="filterMap('kyoto')">교토</button>
+    </div>
+
+    <div id="map"></div>
+    
+    <div id="legend">로딩 중...</div>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyADJIrnLeiIBYBiOzi795TNF3KRsZdgBwA&callback=initMap" async defer></script>
+
+    <script>
+        let map;
+        let markers = []; // 가게 마커들을 담아둘 리스트
+        let accMarkers = {}; // 숙소 마커들을 담아둘 리스트
+
+        async function initMap() {
+            // FastAPI에서 데이터 가져오기
+            const response = await fetch("/api/data");
+            const data = await response.json();
+            const accs = data.accommodations;
+
+            // 1. 지도 생성 (초기 위치는 난바)
+            map = new google.maps.Map(document.getElementById("map"), {
+                center: { lat: accs.namba.lat, lng: accs.namba.lon },
+                zoom: 10, // 전체가 보이게 적당히 줌 아웃
+                mapTypeControl: false,
+                streetViewControl: false,
+                fullscreenControl: false
+            });
+
+            // 2. 숙소 마커 찍기 (별 모양)
+            const starIcon = "http://maps.google.com/mapfiles/kml/shapes/star.png"; // 별 아이콘 이미지
+
+            // 난바 숙소
+            accMarkers['namba'] = new google.maps.Marker({
+                position: { lat: accs.namba.lat, lng: accs.namba.lon },
+                map: map,
+                title: accs.namba.name,
+                icon: { url: starIcon, scaledSize: new google.maps.Size(30, 30) }, // 아이콘 크기 조절
+                zIndex: 9999
+            });
+
+            // 교토 숙소
+            accMarkers['kyoto'] = new google.maps.Marker({
+                position: { lat: accs.kyoto.lat, lng: accs.kyoto.lon },
+                map: map,
+                title: accs.kyoto.name,
+                icon: { url: starIcon, scaledSize: new google.maps.Size(30, 30) },
+                zIndex: 9999
+            });
+
+            // 3. 친구들 마커 아이콘 설정
+            const icons = {
+                'red': 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
+                'blue': 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+                'green': 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
+                'yellow': 'http://maps.google.com/mapfiles/ms/icons/yellow-dot.png',
+                'purple': 'http://maps.google.com/mapfiles/ms/icons/purple-dot.png'
+            };
+
+            const legendDiv = document.getElementById('legend');
+            legendDiv.innerHTML = `<strong>친구들 픽</strong><br>`;
+
+            // 4. 친구들 데이터 루프 돌면서 마커 생성
+            data.friends.forEach(friend => {
+                // 범례 추가
+                legendDiv.innerHTML += `
+                    <div class="legend-item">
+                        <span class="dot" style="background:${friend.color}"></span> ${friend.name}
+                    </div>
+                `;
+
+                friend.places.forEach(place => {
+                    const marker = new google.maps.Marker({
+                        position: { lat: place.lat, lng: place.lon },
+                        map: map, // 처음엔 지도에 다 보여줌
+                        title: place.name,
+                        icon: icons[friend.color] || icons['red']
+                    });
+
+                    // ★중요: 필터링을 위해 마커에 지역 정보를 심어둠★
+                    marker.region = place.region; 
+
+                    // 클릭했을 때 나오는 정보창 내용
+                    const contentString = `
+                        <div style="min-width:200px; padding:5px;">
+                            <h3 style="margin:0 0 5px 0; font-size:16px;">${place.name}</h3>
+                            <p style="margin:0; font-size:13px; color:#555;">추천인: <b>${friend.name}</b></p>
+                            <hr style="margin:5px 0; border:0; border-top:1px solid #eee;">
+                            <p style="margin:0; font-size:13px;">
+                                ${place.region === 'namba' ? '난바' : '교토'} 숙소에서 
+                                <span style="color:red; font-weight:bold;">${place.distance}km</span>
+                            </p>
+                            ${place.link ? `<a href="${place.link}" target="_blank" style="display:block; margin-top:8px; text-decoration:none; color:#007bff; font-weight:bold;">📍 구글맵에서 보기</a>` : ''}
+                        </div>
+                    `;
+
+                    const infoWindow = new google.maps.InfoWindow({ content: contentString });
+
+                    // 마커 클릭 시 정보창 열기
+                    marker.addListener("click", () => {
+                        infoWindow.open(map, marker);
+                    });
+
+                    // 마커 관리 리스트에 저장
+                    markers.push(marker);
+                });
+            });
+        }
+
+        // 5. 버튼 클릭 시 실행되는 필터링 함수
+        function filterMap(region) {
+            // 버튼 색상 변경 로직
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // 1. 모든 친구 마커들을 검사
+            markers.forEach(marker => {
+                if (region === 'all' || marker.region === region) {
+                    marker.setMap(map); // 지도에 표시
+                } else {
+                    marker.setMap(null); // 지도에서 숨김
+                }
+            });
+
+            // 2. 숙소 마커와 카메라 이동 로직
+            if (region === 'all') {
+                // 전체보기: 숙소 둘 다 보여주고, 줌 아웃
+                accMarkers['namba'].setMap(map);
+                accMarkers['kyoto'].setMap(map);
+                map.setZoom(10);
+                map.panTo(accMarkers['namba'].getPosition()); // 대충 난바 쪽으로 이동
+            } else {
+                // 특정 지역 보기: 해당 지역 숙소만 보여주고 줌 인
+                
+                // 난바 버튼 눌렀을 때
+                if (region === 'namba') {
+                    accMarkers['namba'].setMap(map);
+                    accMarkers['kyoto'].setMap(null); // 교토 숙소 숨김
+                    map.panTo(accMarkers['namba'].getPosition());
+                    map.setZoom(14); // 가깝게 줌인
+                }
+                // 교토 버튼 눌렀을 때
+                else if (region === 'kyoto') {
+                    accMarkers['kyoto'].setMap(map);
+                    accMarkers['namba'].setMap(null); // 난바 숙소 숨김
+                    map.panTo(accMarkers['kyoto'].getPosition());
+                    map.setZoom(14); // 가깝게 줌인
+                }
+            }
+        }
+    </script>
+</body>
+</html>
