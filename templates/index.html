@@ -1,220 +1,306 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
-    <title>친구들과 일본 여행 지도</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+    <meta charset="UTF-8">
+    <title>Japan Trip Map 2026</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
     <style>
-        body, html { height: 100%; margin: 0; padding: 0; font-family: 'Noto Sans KR', sans-serif; }
-        
-        /* 지도 전체 화면 */
-        #map { height: 100%; width: 100%; }
-        
-        /* 버튼들이 들어갈 박스 */
-        #controls {
-            position: absolute;
-            top: 60px; /* 모바일에서 검색창 등과 겹치지 않게 */
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 999;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 8px;
-            border-radius: 25px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-            display: flex;
-            gap: 5px;
+        /* --- 기본 설정 --- */
+        * { box-sizing: border-box; }
+        body, html { 
+            height: 100%; margin: 0; padding: 0; 
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+            overflow: hidden; 
         }
-        
-        /* 버튼 스타일 */
-        .filter-btn {
-            border: none;
-            background: #f0f0f0;
-            padding: 8px 16px;
+
+        #map { height: 100%; width: 100%; z-index: 0; }
+
+        /* --- 상단 필터 바 --- */
+        #top-bar {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            padding: 15px 10px;
+            z-index: 10;
+            background: linear-gradient(to bottom, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 100%);
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch; 
+            scrollbar-width: none;
+        }
+        #top-bar::-webkit-scrollbar { display: none; }
+
+        .chip-btn {
+            background: white;
+            border: 1px solid #eee;
             border-radius: 20px;
-            font-weight: bold;
+            padding: 8px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+            white-space: nowrap;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.08);
             cursor: pointer;
-            font-size: 14px;
+            display: flex; align-items: center; gap: 6px;
             transition: all 0.2s;
         }
         
-        /* 선택된 버튼 스타일 */
-        .filter-btn.active {
-            background: #333;
-            color: white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        .chip-btn.active {
+            background: #222; color: white; border-color: #222;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
         }
 
-        /* 범례(Legend) 스타일 */
-        #legend {
-            background: white;
-            padding: 10px;
-            margin: 10px;
-            border-radius: 5px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-            font-size: 12px;
-            position: absolute;
-            bottom: 30px; 
-            left: 10px; 
-            z-index: 999;
+        /* 랜덤 버튼 스타일 */
+        .random-btn {
+            background: #FF6B6B; color: white; border: none;
         }
-        .legend-item { margin-bottom: 5px; display: flex; align-items: center; }
-        .dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; display: inline-block; }
+        .random-btn:active { transform: scale(0.95); background: #ee5253; }
+
+        /* --- 우측 하단 GPS 버튼 --- */
+        #gps-btn {
+            position: absolute; bottom: 30px; right: 20px;
+            width: 50px; height: 50px; border-radius: 50%;
+            background: #4285F4; color: white; border: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            font-size: 20px; z-index: 20; cursor: pointer;
+            display: flex; justify-content: center; align-items: center;
+        }
+        #gps-btn:active { transform: scale(0.95); background: #3367D6; }
+
+        /* --- 좌측 하단 범례 --- */
+        #legend-card {
+            position: absolute; bottom: 30px; left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(5px);
+            padding: 10px 14px; border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            z-index: 10; max-width: 150px; font-size: 12px;
+            max-height: 200px; overflow-y: auto;
+        }
+        .legend-item { display: flex; align-items: center; margin-bottom: 4px; color: #555; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+
+        /* --- 정보창 커스텀 --- */
+        .info-card { padding: 5px 0; min-width: 200px; }
+        .info-card h3 { margin: 0 0 5px 0; font-size: 16px; font-weight: 700; color: #222; }
+        .info-card .tag { 
+            display: inline-block; padding: 2px 6px; border-radius: 4px; 
+            font-size: 10px; color: white; margin-bottom: 8px; font-weight: bold;
+        }
+        .info-card p { margin: 4px 0; font-size: 13px; color: #555; }
+        
+        /* 길찾기 버튼 스타일 */
+        .btn-link {
+            display: block; margin-top: 10px;
+            background: #4285F4; color: white;
+            text-align: center; padding: 10px 0;
+            border-radius: 8px; text-decoration: none;
+            font-size: 14px; font-weight: 600;
+            box-shadow: 0 2px 5px rgba(66, 133, 244, 0.3);
+        }
+        .btn-link:active { background: #3367D6; transform: translateY(1px); }
     </style>
 </head>
 <body>
-    <div id="controls">
-        <button class="filter-btn active" onclick="filterMap('all')">전체보기</button>
-        <button class="filter-btn" onclick="filterMap('namba')">오사카(난바)</button>
-        <button class="filter-btn" onclick="filterMap('kyoto')">교토</button>
+
+    <div id="top-bar">
+        <button class="chip-btn random-btn" onclick="pickRandom()">
+            <i class="fa-solid fa-dice"></i> 뭐 먹지?
+        </button>
+        <button class="chip-btn active" onclick="filterMap('all', this)">
+            <i class="fa-solid fa-layer-group"></i> 전체
+        </button>
+        <button class="chip-btn" onclick="filterMap('namba', this)">
+            <i class="fa-solid fa-city"></i> 난바
+        </button>
+        <button class="chip-btn" onclick="filterMap('kyoto', this)">
+            <i class="fa-solid fa-torii-gate"></i> 교토
+        </button>
     </div>
 
     <div id="map"></div>
-    
-    <div id="legend">로딩 중...</div>
 
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyADJIrnLeiIBYBiOzi795TNF3KRsZdgBwA&callback=initMap" async defer></script>
+    <div id="legend-card">
+        <div style="font-weight:700; margin-bottom:8px;">친구들 Pick</div>
+        <div id="legend-content">로딩 중...</div>
+    </div>
+
+    <button id="gps-btn" onclick="getMyLocation()">
+        <i class="fa-solid fa-location-crosshairs"></i>
+    </button>
 
     <script>
         let map;
-        let markers = []; // 가게 마커들을 담아둘 리스트
-        let accMarkers = {}; // 숙소 마커들을 담아둘 리스트
+        let markers = [];
+        let accMarkers = {}; 
+        let myLocationMarker = null;
 
         async function initMap() {
-            // FastAPI에서 데이터 가져오기
-            const response = await fetch("/api/data");
-            const data = await response.json();
-            const accs = data.accommodations;
+            try {
+                const response = await fetch("/api/data");
+                const data = await response.json();
+                const accs = data.accommodations;
 
-            // 1. 지도 생성 (초기 위치는 난바)
-            map = new google.maps.Map(document.getElementById("map"), {
-                center: { lat: accs.namba.lat, lng: accs.namba.lon },
-                zoom: 10, // 전체가 보이게 적당히 줌 아웃
-                mapTypeControl: false,
-                streetViewControl: false,
-                fullscreenControl: false
-            });
+                // 지도 생성
+                map = new google.maps.Map(document.getElementById("map"), {
+                    center: { lat: accs.namba.lat, lng: accs.namba.lon },
+                    zoom: 11,
+                    disableDefaultUI: true, // 기본 UI 제거
+                    zoomControl: true,
+                    styles: [ { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] } ]
+                });
 
-            // 2. 숙소 마커 찍기 (별 모양)
-            const starIcon = "http://maps.google.com/mapfiles/kml/shapes/star.png"; // 별 아이콘 이미지
+                // 숙소 마커
+                const starIcon = "http://maps.google.com/mapfiles/kml/shapes/star.png"; 
+                accMarkers['namba'] = createMarker(accs.namba, starIcon, "namba");
+                accMarkers['kyoto'] = createMarker(accs.kyoto, starIcon, "kyoto");
 
-            // 난바 숙소
-            accMarkers['namba'] = new google.maps.Marker({
-                position: { lat: accs.namba.lat, lng: accs.namba.lon },
-                map: map,
-                title: accs.namba.name,
-                icon: { url: starIcon, scaledSize: new google.maps.Size(30, 30) }, // 아이콘 크기 조절
-                zIndex: 9999
-            });
+                const icons = {
+                    'red': 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
+                    'blue': 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+                    'green': 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
+                    'yellow': 'http://maps.google.com/mapfiles/ms/icons/yellow-dot.png',
+                    'purple': 'http://maps.google.com/mapfiles/ms/icons/purple-dot.png'
+                };
 
-            // 교토 숙소
-            accMarkers['kyoto'] = new google.maps.Marker({
-                position: { lat: accs.kyoto.lat, lng: accs.kyoto.lon },
-                map: map,
-                title: accs.kyoto.name,
-                icon: { url: starIcon, scaledSize: new google.maps.Size(30, 30) },
-                zIndex: 9999
-            });
+                const legendContent = document.getElementById('legend-content');
+                legendContent.innerHTML = '';
 
-            // 3. 친구들 마커 아이콘 설정
-            const icons = {
-                'red': 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
-                'blue': 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
-                'green': 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
-                'yellow': 'http://maps.google.com/mapfiles/ms/icons/yellow-dot.png',
-                'purple': 'http://maps.google.com/mapfiles/ms/icons/purple-dot.png'
-            };
-
-            const legendDiv = document.getElementById('legend');
-            legendDiv.innerHTML = `<strong>친구들 픽</strong><br>`;
-
-            // 4. 친구들 데이터 루프 돌면서 마커 생성
-            data.friends.forEach(friend => {
-                // 범례 추가
-                legendDiv.innerHTML += `
-                    <div class="legend-item">
-                        <span class="dot" style="background:${friend.color}"></span> ${friend.name}
-                    </div>
-                `;
-
-                friend.places.forEach(place => {
-                    const marker = new google.maps.Marker({
-                        position: { lat: place.lat, lng: place.lon },
-                        map: map, // 처음엔 지도에 다 보여줌
-                        title: place.name,
-                        icon: icons[friend.color] || icons['red']
-                    });
-
-                    // ★중요: 필터링을 위해 마커에 지역 정보를 심어둠★
-                    marker.region = place.region; 
-
-                    // 클릭했을 때 나오는 정보창 내용
-                    const contentString = `
-                        <div style="min-width:200px; padding:5px;">
-                            <h3 style="margin:0 0 5px 0; font-size:16px;">${place.name}</h3>
-                            <p style="margin:0; font-size:13px; color:#555;">추천인: <b>${friend.name}</b></p>
-                            <hr style="margin:5px 0; border:0; border-top:1px solid #eee;">
-                            <p style="margin:0; font-size:13px;">
-                                ${place.region === 'namba' ? '난바' : '교토'} 숙소에서 
-                                <span style="color:red; font-weight:bold;">${place.distance}km</span>
-                            </p>
-                            ${place.link ? `<a href="${place.link}" target="_blank" style="display:block; margin-top:8px; text-decoration:none; color:#007bff; font-weight:bold;">📍 구글맵에서 보기</a>` : ''}
+                // 데이터 루프
+                data.friends.forEach(friend => {
+                    legendContent.innerHTML += `
+                        <div class="legend-item">
+                            <span class="dot" style="background:${friend.color}"></span> ${friend.name}
                         </div>
                     `;
 
-                    const infoWindow = new google.maps.InfoWindow({ content: contentString });
+                    friend.places.forEach(place => {
+                        const marker = new google.maps.Marker({
+                            position: { lat: place.lat, lng: place.lon },
+                            map: map,
+                            icon: icons[friend.color] || icons['red']
+                        });
+                        marker.region = place.region; 
 
-                    // 마커 클릭 시 정보창 열기
-                    marker.addListener("click", () => {
-                        infoWindow.open(map, marker);
+                        // 길찾기 링크 생성
+                        const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lon}&travelmode=walking`;
+
+                        const contentString = `
+                            <div class="info-card">
+                                <span class="tag" style="background:${friend.color}">${friend.name} Pick</span>
+                                <h3>${place.name}</h3>
+                                <p><i class="fa-solid fa-hotel"></i> 숙소에서 <b>${place.distance}km</b></p>
+                                
+                                <a href="${directionsUrl}" target="_blank" class="btn-link">
+                                    <i class="fa-solid fa-person-walking"></i> 길찾기 (Go)
+                                </a>
+                            </div>
+                        `;
+                        
+                        const infoWindow = new google.maps.InfoWindow({ content: contentString });
+                        marker.addListener("click", () => {
+                            infoWindow.open(map, marker);
+                            marker.setAnimation(null);
+                        });
+                        markers.push(marker);
                     });
-
-                    // 마커 관리 리스트에 저장
-                    markers.push(marker);
                 });
-            });
+            } catch (error) {
+                console.error("맵 데이터 로딩 실패:", error);
+            }
         }
 
-        // 5. 버튼 클릭 시 실행되는 필터링 함수
-        function filterMap(region) {
-            // 버튼 색상 변경 로직
-            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
+        // 숙소 마커 생성기
+        function createMarker(info, iconUrl, region) {
+            const marker = new google.maps.Marker({
+                position: { lat: info.lat, lng: info.lon },
+                map: map,
+                icon: { url: iconUrl, scaledSize: new google.maps.Size(35, 35) },
+                zIndex: 100
+            });
+            const infoWin = new google.maps.InfoWindow({ content: `<div style="padding:5px"><b>🏠 ${info.name}</b></div>` });
+            marker.addListener("click", () => infoWin.open(map, marker));
+            return marker;
+        }
 
-            // 1. 모든 친구 마커들을 검사
+        // 내 위치 찾기
+        function getMyLocation() {
+            const btn = document.getElementById('gps-btn');
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; 
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((position) => {
+                    const pos = { lat: position.coords.latitude, lng: position.coords.longitude };
+                    if (myLocationMarker) myLocationMarker.setMap(null);
+
+                    myLocationMarker = new google.maps.Marker({
+                        position: pos, map: map,
+                        icon: {
+                            path: google.maps.SymbolPath.CIRCLE, scale: 8,
+                            fillColor: "#4285F4", fillOpacity: 1, strokeColor: "white", strokeWeight: 2,
+                        },
+                        zIndex: 999
+                    });
+                    map.setCenter(pos);
+                    map.setZoom(15);
+                    btn.innerHTML = '<i class="fa-solid fa-location-arrow"></i>';
+                }, () => {
+                    alert("위치 정보를 가져올 수 없습니다.");
+                    btn.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i>';
+                });
+            } else { alert("GPS 미지원 브라우저"); }
+        }
+
+        // 랜덤 뽑기
+        function pickRandom() {
+            const visibleMarkers = markers.filter(m => m.getMap() !== null);
+            if (visibleMarkers.length === 0) { alert("표시된 장소가 없습니다!"); return; }
+
+            const randomIndex = Math.floor(Math.random() * visibleMarkers.length);
+            const selectedMarker = visibleMarkers[randomIndex];
+
+            map.panTo(selectedMarker.getPosition());
+            map.setZoom(16);
+            
+            selectedMarker.setAnimation(google.maps.Animation.BOUNCE);
+            setTimeout(() => { selectedMarker.setAnimation(null); }, 2100); 
+
+            google.maps.event.trigger(selectedMarker, 'click');
+        }
+
+        // 필터링
+        function filterMap(region, btnElement) {
+            document.querySelectorAll('.chip-btn').forEach(btn => {
+                if(!btn.classList.contains('random-btn')) btn.classList.remove('active');
+            });
+            if(btnElement) btnElement.classList.add('active');
+
             markers.forEach(marker => {
-                if (region === 'all' || marker.region === region) {
-                    marker.setMap(map); // 지도에 표시
-                } else {
-                    marker.setMap(null); // 지도에서 숨김
-                }
+                marker.setMap((region === 'all' || marker.region === region) ? map : null);
             });
 
-            // 2. 숙소 마커와 카메라 이동 로직
             if (region === 'all') {
-                // 전체보기: 숙소 둘 다 보여주고, 줌 아웃
-                accMarkers['namba'].setMap(map);
-                accMarkers['kyoto'].setMap(map);
-                map.setZoom(10);
-                map.panTo(accMarkers['namba'].getPosition()); // 대충 난바 쪽으로 이동
+                accMarkers['namba'].setMap(map); accMarkers['kyoto'].setMap(map);
+                map.setZoom(11); map.panTo(accMarkers['namba'].getPosition());
             } else {
-                // 특정 지역 보기: 해당 지역 숙소만 보여주고 줌 인
-                
-                // 난바 버튼 눌렀을 때
-                if (region === 'namba') {
-                    accMarkers['namba'].setMap(map);
-                    accMarkers['kyoto'].setMap(null); // 교토 숙소 숨김
-                    map.panTo(accMarkers['namba'].getPosition());
-                    map.setZoom(14); // 가깝게 줌인
-                }
-                // 교토 버튼 눌렀을 때
-                else if (region === 'kyoto') {
-                    accMarkers['kyoto'].setMap(map);
-                    accMarkers['namba'].setMap(null); // 난바 숙소 숨김
-                    map.panTo(accMarkers['kyoto'].getPosition());
-                    map.setZoom(14); // 가깝게 줌인
+                accMarkers['namba'].setMap(region === 'namba' ? map : null);
+                accMarkers['kyoto'].setMap(region === 'kyoto' ? map : null);
+                if (accMarkers[region]) {
+                    map.panTo(accMarkers[region].getPosition()); map.setZoom(13);
                 }
             }
         }
+
+        // ★★★ 핵심 수정: initMap 함수를 전역(window)에 등록 ★★★
+        // 이렇게 해야 구글맵이 로딩 끝나고 "어디 있어?" 하고 찾을 때 바로 발견합니다.
+        window.initMap = initMap;
+
     </script>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyADJIrnLeiIBYBiOzi795TNF3KRsZdgBwA&callback=initMap" async defer></script>
 </body>
 </html>
